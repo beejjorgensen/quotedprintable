@@ -124,13 +124,6 @@ int qp_decode(char *in, char *out, char **badchar)
 }
 
 char *sample_1 = "a=09bc=20def=2E=\r\ncontinue\nnewline";
-char *sample_2 = 
-    "Those=20facilities=20were=20NEVER=20properly=20funded=20and=20beca=\n"
-    "me=20nothing=20more=20than=20poorly=20managed=20prisons.Most=20of=\n"
-    "=20the=20lunatics=20on=20the=20streets=20now=20are=20severely=20ad=\n"
-    "dicted=20people=20that=20cannot=20and=20woulod=20not=20be=20cured=\n"
-    "=20of=20their=20addiction.=20Fentanyl=20will=20kill=20them=20and=\n"
-    "=20therw's=20no=20way=20to=20stop=20it.\n";
 
 int main(void)
 {
