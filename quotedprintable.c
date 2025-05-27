@@ -29,6 +29,23 @@
 //
 // For more information, please refer to <https://unlicense.org/>
 
+enum state {
+    NORMAL,
+    EQUAL,
+    HEX2,
+    CONTINUATION,
+    ERROR,
+};
+
+struct decoder {
+    char *in;
+    char *out;
+    char *badchar;
+    size_t input_size;
+    size_t output_size;
+    enum state state;
+};
+
 static int is_qp_normal(int c)
 {
     return (c >= 33 && c <= 126 && c !='=') || isspace(c);
@@ -46,28 +63,23 @@ static int hex_char_value(int c)
     return -1;
 }
 
-int qp_decode(char *in, char *out, char **badchar)
+char *qp_decode(struct decoder *decoder)
 {
-    enum {
-        NORMAL,
-        EQUAL,
-        HEX2,
-        CONTINUATION,
-    } state = NORMAL;
-
     int hex;
-    (void)badchar; // TODO
 
-    while (*in) {
-        switch (state) {
+    char *in = decoder->in;
+    char *out = decoder->out;
+
+    while (in < decoder->in + decoder->input_size) {
+        switch (decoder->state) {
             case NORMAL:
                 if (is_qp_normal(*in)) {
-                    state = NORMAL;
+                    decoder->state = NORMAL;
                     *(out++) = *(in++);
                     break;
                 }
                 else if (*in == '=') {
-                    state = EQUAL;
+                    decoder->state = EQUAL;
                     in++;
                 }
                 // TODO else badchar
@@ -75,11 +87,11 @@ int qp_decode(char *in, char *out, char **badchar)
 
             case EQUAL:
                 if (*in == '\n' || *in == '\r') {
-                    state = CONTINUATION;
+                    decoder->state = CONTINUATION;
                     in++;
                 }
                 else if (is_hex_digit(*in)) {
-                    state = HEX2;
+                    decoder->state = HEX2;
                     hex = hex_char_value(*in);
                     in++;
                 }
@@ -88,7 +100,7 @@ int qp_decode(char *in, char *out, char **badchar)
 
             case HEX2:
                 if (is_hex_digit(*in)) {
-                    state = NORMAL;
+                    decoder->state = NORMAL;
                     hex = (hex << 4) | hex_char_value(*in);
                     *(out++) = hex;
                     in++;
@@ -101,35 +113,52 @@ int qp_decode(char *in, char *out, char **badchar)
                 // TODO: could this fail if we continue directly into a
                 // newline? Would that happen? Of course it would.
                 if (*in == '\n' || *in == '\r') {
-                    state = CONTINUATION;
+                    decoder->state = CONTINUATION;
                     in++;
                 }
 
                 else if (*in == '=') {
-                    state = EQUAL;
+                    decoder->state = EQUAL;
                     in++;
                 }
 
                 else if (is_qp_normal(*in)) {
-                    state = NORMAL;
+                    decoder->state = NORMAL;
                     *(out++) = *(in++);
                     break;
                 }
                 // TODO else badchar
                 break;
+
+            case ERROR:
+                // TODO
+                break;
         }
     } // while (*in)
+
+    decoder->output_size = out - decoder->out;
 
     return 0;
 }
 
 char *sample_1 = "a=09bc=20def=2E=\r\ncontinue\nnewline";
 
+#define BLOCK_SIZE 4096
+
 int main(void)
 {
-    char out[4096];
+    struct decoder d;
+    char inbuf[BLOCK_SIZE], outbuf[BLOCK_SIZE];
 
-    qp_decode(sample_1, out, NULL);
+    d.in = inbuf;
+    d.out = outbuf;
+    d.state = NORMAL;
 
-    printf("%s\n", out);
+    size_t bytes_read;
+
+    while ((bytes_read = fread(d.in, 1, BLOCK_SIZE, stdin)) > 0) {
+        d.input_size = bytes_read;
+        qp_decode(&d);
+        fwrite(d.out, 1, d.output_size, stdout);
+    }
 }
